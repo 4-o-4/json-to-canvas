@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>JSON Import</title>
+    <style>
+      body {
+        font-family: Inter, Arial, sans-serif;
+        margin: 0;
+        padding: 16px;
+      }
+      h3 {
+        margin: 0 0 12px;
+        font-size: 14px;
+      }
+      textarea {
+        width: 100%;
+        height: 320px;
+        box-sizing: border-box;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        padding: 10px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      button {
+        border: 0;
+        border-radius: 6px;
+        padding: 10px 12px;
+        cursor: pointer;
+      }
+      #importBtn {
+        background: #18a0fb;
+        color: white;
+      }
+      #cancelBtn {
+        background: #eee;
+      }
+      .hint {
+        margin-top: 10px;
+        color: #666;
+        font-size: 11px;
+        line-height: 1.4;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>JSON макета</h3>
+    <textarea id="jsonInput">
+      [
+        {
+          "type": "FRAME",
+          "name": "Frame",
+          "children": [
+            {
+              "type": "TEXT",
+              "textSegments": [
+                { "characters": "Заголовок H1", "textStyleName": "h1" },
+                { "characters": "Заголовок H2", "textStyleName": "h2" },
+                {
+                  "characters": "Используйте этот текст как пример основного содержимого.",
+                  "textStyleName": "p"
+                },
+                {
+                  "characters": "Ещё один абзац. Он демонстрирует, как выглядят несколько абзацев подряд и как они будут переноситься внутри авто‑лейаута.",
+                  "textStyleName": "p"
+                }
+              ]
+            },
+            {
+              "type": "FRAME",
+              "name": "Code",
+              "children": [
+                {
+                  "type": "TEXT",
+                  "textSegments": [
+                    {
+                      "characters": "print(\"Hello, World!\")",
+                      "textStyleName": "code"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    </textarea>
+
+    <div class="row">
+      <button id="importBtn">Импортировать</button>
+      <button id="cancelBtn">Закрыть</button>
+    </div>
+
+    <div class="hint">
+      Поддерживаются: FRAME, TEXT (textStyleName или textSegments для разных
+      стилей внутри строки), fills, размеры, x/y, auto-layout.
+    </div>
+
+    <script>
+      const jsonInput = document.getElementById("jsonInput");
+      const importBtn = document.getElementById("importBtn");
+      const cancelBtn = document.getElementById("cancelBtn");
+
+      importBtn.onclick = () => {
+        parent.postMessage(
+          {
+            pluginMessage: {
+              type: "import-json",
+              payload: jsonInput.value
+            }
+          },
+          "*"
+        );
+      };
+
+      cancelBtn.onclick = () => {
+        parent.postMessage(
+          {
+            pluginMessage: { type: "cancel" }
+          },
+          "*"
+        );
+      };
+    </script>
+  </body>
+</html>
