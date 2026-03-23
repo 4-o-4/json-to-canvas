@@ -50,44 +50,44 @@
   <body>
     <h3>JSON макета</h3>
     <textarea id="jsonInput">
-      [
-        {
-          "type": "FRAME",
-          "name": "Frame",
-          "children": [
-            {
-              "type": "TEXT",
-              "textSegments": [
-                { "characters": "Заголовок H1", "textStyleName": "h1" },
-                { "characters": "Заголовок H2", "textStyleName": "h2" },
-                {
-                  "characters": "Используйте этот текст как пример основного содержимого.",
-                  "textStyleName": "p"
-                },
-                {
-                  "characters": "Ещё один абзац. Он демонстрирует, как выглядят несколько абзацев подряд и как они будут переноситься внутри авто‑лейаута.",
-                  "textStyleName": "p"
-                }
-              ]
-            },
-            {
-              "type": "FRAME",
-              "name": "Code",
-              "children": [
-                {
-                  "type": "TEXT",
-                  "textSegments": [
-                    {
-                      "characters": "print(\"Hello, World!\")",
-                      "textStyleName": "code"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
+[
+  {
+    "type": "TEXT",
+    "textSegments": [
+      {
+        "characters": "Заголовок H1",
+        "textStyleName": "h1"
+      },
+      {
+        "characters": "Заголовок H2",
+        "textStyleName": "h2"
+      },
+      {
+        "characters": "Используйте этот текст как пример основного содержимого.",
+        "textStyleName": "p"
+      },
+      {
+        "characters": "Ещё один абзац. Он демонстрирует, как выглядят несколько абзацев подряд и как они будут переноситься внутри авто‑лейаута.",
+        "textStyleName": "p"
+      }
+    ]
+  },
+  {
+    "type": "FRAME",
+    "name": "Code",
+    "children": [
+      {
+        "type": "TEXT",
+        "textSegments": [
+          {
+            "characters": "print(\"Hello, World!\")",
+            "textStyleName": "code"
+          }
+        ]
+      }
+    ]
+  }
+]
     </textarea>
 
     <div class="row">
