@@ -9,9 +9,13 @@ type JsonPaint = {
 };
 
 type TextSegment = {
-  characters: string;
+  characters?: string | string[];
   textStyleName: string;
 };
+
+type Padding = { top: number; right: number; bottom: number; left: number };
+
+type ResolvedSegment = { seg: TextSegment; style: TextStyle };
 
 type JsonNode = {
   type: "FRAME" | "TEXT";
@@ -42,8 +46,6 @@ type JsonNode = {
   layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
   layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
 
-  characters?: string;
-  textStyleName?: string;
   textSegments?: TextSegment[];
   textAlignHorizontal?: "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";
   textAlignVertical?: "TOP" | "CENTER" | "BOTTOM";
@@ -115,9 +117,7 @@ async function parseAndBuild(payload: string): Promise<FrameNode[]> {
     return [await buildArtboardFromItems(parsed as unknown[], 0)];
   }
 
-  throw new Error(
-    "Некорректный JSON: используйте либо [node, ...], либо [[node, ...], [node, ...]] без смешивания форматов"
-  );
+  throw new Error("Некорректный JSON: используйте [node, ...] или [[node, ...], [node, ...]]");
 }
 
 function isJsonNode(value: unknown): value is JsonNode {
@@ -128,9 +128,7 @@ function isJsonNode(value: unknown): value is JsonNode {
 
 function assertJsonNode(value: unknown): asserts value is JsonNode {
   if (!isJsonNode(value)) {
-    throw new Error(
-      "Некорректный JSON: корневой объект должен содержать поле type (FRAME или TEXT)"
-    );
+    throw new Error("Некорректный JSON: объект должен содержать поле type (FRAME или TEXT)");
   }
 }
 
@@ -144,11 +142,7 @@ function wrapInArtboard(child: SceneNode, json: JsonNode, index: number): FrameN
 async function buildArtboardFromItems(items: unknown[], index: number): Promise<FrameNode> {
   const artboard = createArtboard(index);
   for (const item of items) {
-    if (!isJsonNode(item)) {
-      throw new Error(
-        "Некорректный JSON: каждый элемент массива должен быть объектом с полем type (FRAME или TEXT)"
-      );
-    }
+    assertJsonNode(item);
     const child = await buildNode(item);
     artboard.appendChild(child);
     applyLayoutSizing(child, item, artboard);
@@ -165,10 +159,7 @@ function createArtboard(index: number): FrameNode {
   artboard.primaryAxisAlignItems = "CENTER";
   artboard.counterAxisAlignItems = "CENTER";
   artboard.itemSpacing = ARTBOARD.ITEM_SPACING;
-  artboard.paddingTop = ARTBOARD.PADDING.top;
-  artboard.paddingRight = ARTBOARD.PADDING.right;
-  artboard.paddingBottom = ARTBOARD.PADDING.bottom;
-  artboard.paddingLeft = ARTBOARD.PADDING.left;
+  applyPadding(artboard, ARTBOARD.PADDING);
   artboard.resize(ARTBOARD.WIDTH, artboard.height);
   return artboard;
 }
@@ -196,13 +187,12 @@ async function buildNode(json: JsonNode): Promise<SceneNode> {
     case "TEXT":
       return buildText(json);
     default:
-      throw new Error(`Неподдерживаемый type: ${(json as any).type}`);
+      throw new Error(`Неподдерживаемый type: ${String((json as { type?: unknown }).type)}`);
   }
 }
 
 async function buildFrame(json: JsonNode): Promise<FrameNode> {
   const node = figma.createFrame();
-
   applyBaseProps(node, json);
   applyCodeFramePreset(node, json.name);
   applyFrameLayout(node, json);
@@ -218,31 +208,20 @@ async function buildFrame(json: JsonNode): Promise<FrameNode> {
 }
 
 async function buildText(json: JsonNode): Promise<TextNode> {
+  const segments = json.textSegments;
+  if (!Array.isArray(segments) || segments.length === 0) {
+    throw new Error("TEXT требует textSegments");
+  }
+
   const node = figma.createText();
   applyBaseProps(node, json);
 
-  const segments = json.textSegments;
-  const hasSegments = Array.isArray(segments) && segments.length > 0;
-
-  if (!hasSegments && !json.textStyleName) {
-    throw new Error(
-      "TEXT требует textStyleName или textSegments (массив сегментов с разными стилями)"
-    );
-  }
-
   const h2PaintStyleId = await resolvePaintStyle(H2_PAINT_STYLE_NAME);
-
-  if (hasSegments) {
-    await applyTextSegments(node, segments, h2PaintStyleId);
-  } else {
-    await applySingleTextStyle(node, json);
-  }
+  await applyTextSegments(node, segments, h2PaintStyleId);
 
   if (json.textAlignHorizontal) node.textAlignHorizontal = json.textAlignHorizontal;
   if (json.textAlignVertical) node.textAlignVertical = json.textAlignVertical;
   node.textAutoResize = json.textAutoResize ?? "HEIGHT";
-
-  await applyTextFills(node, json, hasSegments, h2PaintStyleId);
 
   if (
     typeof json.width === "number" &&
@@ -257,15 +236,11 @@ async function buildText(json: JsonNode): Promise<TextNode> {
 
 function applyCodeFramePreset(node: FrameNode, name?: string): void {
   if (name !== "Code") return;
-
   node.layoutMode = "VERTICAL";
   node.primaryAxisSizingMode = "AUTO";
   node.counterAxisSizingMode = "AUTO";
   node.itemSpacing = CODE_FRAME.ITEM_SPACING;
-  node.paddingTop = CODE_FRAME.PADDING.top;
-  node.paddingRight = CODE_FRAME.PADDING.right;
-  node.paddingBottom = CODE_FRAME.PADDING.bottom;
-  node.paddingLeft = CODE_FRAME.PADDING.left;
+  applyPadding(node, CODE_FRAME.PADDING);
   node.cornerRadius = CODE_FRAME.CORNER_RADIUS;
   node.strokeWeight = CODE_FRAME.STROKE_WEIGHT;
   node.strokes = toFigmaPaints([{ type: "SOLID", color: CODE_FRAME.STROKE_COLOR }]);
@@ -330,10 +305,7 @@ async function applyTextSegments(
   segments: TextSegment[],
   h2PaintStyleId: string | null
 ): Promise<void> {
-  const resolved: { seg: TextSegment; style: TextStyle }[] = [];
-  for (const seg of segments) {
-    resolved.push({ seg, style: await resolveTextStyle(seg.textStyleName) });
-  }
+  const resolved = await resolveSegments(segments);
 
   for (const { style } of resolved) {
     await figma.loadFontAsync(style.fontName);
@@ -341,7 +313,7 @@ async function applyTextSegments(
 
   node.fontName = resolved[0].style.fontName;
 
-  const texts = resolved.map((r) => r.seg.characters);
+  const texts = resolved.map((r) => segmentToText(r.seg));
   const separators = buildSegmentSeparators(resolved);
   node.characters = texts.map((s, i) => s + (separators[i] ?? "")).join("");
 
@@ -350,6 +322,9 @@ async function applyTextSegments(
     const { seg, style } = resolved[i];
     const end = offset + texts[i].length;
     await node.setRangeTextStyleIdAsync(offset, end, style.id);
+    if (Array.isArray(seg.characters)) {
+      applyListStyle(node, offset, end);
+    }
     if (seg.textStyleName === "h2" && h2PaintStyleId) {
       await node.setRangeFillStyleIdAsync(offset, end, h2PaintStyleId);
     }
@@ -357,44 +332,43 @@ async function applyTextSegments(
   }
 }
 
-function buildSegmentSeparators(
-  resolved: { seg: TextSegment; style: TextStyle }[]
-): string[] {
-  const separators: string[] = [];
-  for (let i = 0; i < resolved.length - 1; i++) {
-    const prevIsP = resolved[i].seg.textStyleName === "p";
+async function resolveSegments(segments: TextSegment[]): Promise<ResolvedSegment[]> {
+  const resolved: ResolvedSegment[] = [];
+  for (const seg of segments) {
+    resolved.push({ seg, style: await resolveTextStyle(seg.textStyleName) });
+  }
+  return resolved;
+}
+
+function segmentToText(segment: TextSegment): string {
+  return Array.isArray(segment.characters)
+    ? segment.characters.join("\n")
+    : segment.characters ?? "";
+}
+
+function buildSegmentSeparators(resolved: ResolvedSegment[]): string[] {
+  return resolved.slice(0, -1).map((r, i) => {
+    const prevIsP = r.seg.textStyleName === "p";
     const nextIsH2 = resolved[i + 1].seg.textStyleName === "h2";
-    separators.push(prevIsP && nextIsH2 ? "\n\n" : "\n");
-  }
-  return separators;
+    return prevIsP && nextIsH2 ? "\n\n" : "\n";
+  });
 }
 
-async function applySingleTextStyle(
+function applyListStyle(
   node: TextNode,
-  json: JsonNode
-): Promise<void> {
-  const styleName = json.textStyleName!;
-  const style = await resolveTextStyle(styleName);
-  await figma.loadFontAsync(style.fontName);
-  await node.setTextStyleIdAsync(style.id);
-  const chars = json.characters || "";
-  const isHeading = styleName === "h1" || styleName === "h2";
-  node.characters = isHeading ? chars + "\n" : chars;
-}
-
-async function applyTextFills(
-  node: TextNode,
-  json: JsonNode,
-  hasSegments: boolean,
-  h2PaintStyleId: string | null
-): Promise<void> {
-  if (hasSegments) return;
-
-  if (json.fills) {
-    node.fills = toFigmaPaints(json.fills);
-  } else if (json.textStyleName === "h2" && h2PaintStyleId) {
-    await node.setFillStyleIdAsync(h2PaintStyleId);
-  }
+  start: number,
+  end: number
+): void {
+  if (end <= start) return;
+  const ext = node as TextNode & {
+    setRangeListOptions?: (
+      s: number,
+      e: number,
+      opts: { type: "UNORDERED" }
+    ) => void;
+  };
+  if (typeof ext.setRangeListOptions !== "function") return;
+  ext.setRangeListOptions(start, end, { type: "UNORDERED" });
 }
 
 function applyBaseProps(node: SceneNode, json: JsonNode): void {
@@ -434,6 +408,13 @@ function applyLayoutSizing(
   layout.layoutSizingVertical = vertical;
 }
 
+function applyPadding(node: FrameNode, padding: Padding): void {
+  node.paddingTop = padding.top;
+  node.paddingRight = padding.right;
+  node.paddingBottom = padding.bottom;
+  node.paddingLeft = padding.left;
+}
+
 async function resolveTextStyle(name: string): Promise<TextStyle> {
   if (!styleCache.text) {
     styleCache.text = await figma.getLocalTextStylesAsync();
@@ -456,7 +437,7 @@ async function resolvePaintStyle(name: string): Promise<string | null> {
 function toFigmaPaints(paints: JsonPaint[]): Paint[] {
   return paints.map((paint) => {
     if (paint.type !== "SOLID") {
-      throw new Error(`Неподдерживаемый fill type: ${(paint as any).type}`);
+      throw new Error(`Неподдерживаемый fill type: ${(paint as { type?: unknown }).type}`);
     }
     return {
       type: "SOLID",
