@@ -1,4 +1,4 @@
-import {JsonNode, NodeType, TextSegment} from "./types";
+import {FramePreset, JsonNode, NodeType, TextSegment} from "./types";
 import {FRAME_PRESET_BY_STYLE} from "./constants";
 
 export function isJsonNode(value: unknown): value is JsonNode {
@@ -69,17 +69,33 @@ export function groupBlocksIntoNodes(blocks: TextSegment[]): JsonNode[] {
         const preset = FRAME_PRESET_BY_STYLE[blocks[i].textStyleName];
 
         if (preset) {
-            const styleKey = blocks[i].textStyleName;
-            const run: TextSegment[] = [];
-            while (i < blocks.length && blocks[i].textStyleName === styleKey) {
-                run.push(blocks[i]);
+            if (preset === FramePreset.CODE) {
+                nodes.push({
+                    type: NodeType.FRAME,
+                    name: preset,
+                    children: [
+                        {
+                            type: NodeType.TEXT,
+                            textSegments: convertSegmentsToStyleObjects([blocks[i]]),
+                        },
+                    ],
+                });
                 i++;
+            } else {
+                const styleKey = blocks[i].textStyleName;
+                const run: TextSegment[] = [];
+                while (i < blocks.length && blocks[i].textStyleName === styleKey) {
+                    run.push(blocks[i]);
+                    i++;
+                }
+                nodes.push({
+                    type: NodeType.FRAME,
+                    name: preset,
+                    children: [
+                        {type: NodeType.TEXT, textSegments: convertSegmentsToStyleObjects(run)},
+                    ],
+                });
             }
-            nodes.push({
-                type: NodeType.FRAME,
-                name: preset,
-                children: [{type: NodeType.TEXT, textSegments: convertSegmentsToStyleObjects(run)}],
-            });
         } else {
             const run: TextSegment[] = [];
             while (i < blocks.length && !FRAME_PRESET_BY_STYLE[blocks[i].textStyleName]) {
