@@ -52,40 +52,19 @@
     <textarea id="jsonInput">
 [
   {
-    "type": "TEXT",
-    "textSegments": [
-      {
-        "characters": "Заголовок H1",
-        "textStyleName": "h1"
-      },
-      {
-        "characters": "Заголовок H2",
-        "textStyleName": "h2"
-      },
-      {
-        "characters": "Используйте этот текст как пример основного содержимого.",
-        "textStyleName": "p"
-      },
-      {
-        "characters": "Ещё один абзац. Он демонстрирует, как выглядят несколько абзацев подряд и как они будут переноситься внутри авто‑лейаута.",
-        "textStyleName": "p"
-      }
-    ]
+    "h1": "Заголовок H1"
   },
   {
-    "type": "FRAME",
-    "name": "Code",
-    "children": [
-      {
-        "type": "TEXT",
-        "textSegments": [
-          {
-            "characters": "print(\"Hello, World!\")",
-            "textStyleName": "code"
-          }
-        ]
-      }
-    ]
+    "h2": "Заголовок H2"
+  },
+  {
+    "p": "Используйте этот текст как пример основного содержимого."
+  },
+  {
+    "p": "Ещё один абзац. Он демонстрирует, как выглядят несколько абзацев подряд и как они будут переноситься внутри авто‑лейаута."
+  },
+  {
+    "code": "print(\"Hello, World!\")"
   }
 ]
     </textarea>
@@ -96,8 +75,7 @@
     </div>
 
     <div class="hint">
-      Поддерживаются: FRAME, TEXT (textStyleName или textSegments для разных
-      стилей внутри строки), fills, размеры, x/y, auto-layout.
+      Формат документа: <code>[ {"h2":"…"}, {"p":"…"}, {"code":"…"} ], … ]</code> — внутренний массив это один артборд.
     </div>
 
     <script>
