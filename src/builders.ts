@@ -10,7 +10,6 @@ import {
 import {ARTBOARD, CODE_FRAME, H2_PAINT_STYLE_NAME} from "./constants";
 import {resolveTextStyle, resolvePaintStyleId, convertToFigmaPaints} from "./styles";
 import {
-    isJsonNode,
     assertJsonNode,
     isStyleBlockArray,
     parseTextSegment,
@@ -22,10 +21,7 @@ export async function parseAndCreateArtboards(payload: string): Promise<FrameNod
     const parsed = JSON.parse(payload) as unknown;
 
     if (!Array.isArray(parsed)) {
-        if (typeof parsed === "object" && parsed !== null && isJsonNode(parsed)) {
-            return [wrapInArtboard(await createSceneNode(parsed), parsed, 0)];
-        }
-        throw new Error("Некорректный JSON: ожидался массив блоков или объект с type FRAME/TEXT");
+        throw new Error("Некорректный JSON: ожидался массив блоков");
     }
 
     if (parsed.length > 0 && parsed.every(Array.isArray)) {
@@ -55,13 +51,6 @@ export function placeArtboardsOnCanvas(artboards: FrameNode[]): void {
         artboard.y = topY;
         x += artboard.width + ARTBOARD.SPACING;
     }
-}
-
-function wrapInArtboard(child: SceneNode, json: JsonNode, index: number): FrameNode {
-    const artboard = createArtboard(index);
-    artboard.appendChild(child);
-    applyLayoutSizing(child, json, artboard);
-    return artboard;
 }
 
 async function createArtboardFromItems(
