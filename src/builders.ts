@@ -17,7 +17,17 @@ import {
     groupBlocksIntoNodes,
 } from "./parsing";
 
-export async function parseAndCreateArtboards(payload: string): Promise<FrameNode[]> {
+function normalizeArtboardNumberStart(value: unknown): number {
+    const n = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(n) || n < 1) return 1;
+    return Math.floor(n);
+}
+
+export async function parseAndCreateArtboards(
+    payload: string,
+    artboardNumberStart = 1,
+): Promise<FrameNode[]> {
+    const start = normalizeArtboardNumberStart(artboardNumberStart);
     const parsed = JSON.parse(payload) as unknown;
 
     if (!Array.isArray(parsed)) {
@@ -26,12 +36,12 @@ export async function parseAndCreateArtboards(payload: string): Promise<FrameNod
 
     if (parsed.length > 0 && parsed.every(Array.isArray)) {
         return Promise.all(
-            (parsed as unknown[][]).map((row, i) => createArtboardFromItems(row, i)),
+            (parsed as unknown[][]).map((row, i) => createArtboardFromItems(row, i, start)),
         );
     }
 
     if (parsed.every((item) => !Array.isArray(item))) {
-        return [await createArtboardFromItems(parsed as unknown[], 0)];
+        return [await createArtboardFromItems(parsed as unknown[], 0, start)];
     }
 
     throw new Error("Некорректный JSON: используйте [блок, …] или [[блок, …], …]");
@@ -56,8 +66,9 @@ export function placeArtboardsOnCanvas(artboards: FrameNode[]): void {
 async function createArtboardFromItems(
     items: unknown[],
     index: number,
+    artboardNumberStart: number,
 ): Promise<FrameNode> {
-    const artboard = createArtboard(index);
+    const artboard = createArtboard(index, artboardNumberStart);
     if (items.length === 0) return artboard;
 
     if (isStyleBlockArray(items)) {
@@ -80,9 +91,9 @@ async function createArtboardFromItems(
     return artboard;
 }
 
-function createArtboard(index: number): FrameNode {
+function createArtboard(index: number, artboardNumberStart: number): FrameNode {
     const artboard = figma.createFrame();
-    artboard.name = `${ARTBOARD.NAME_PREFIX} - ${index + 1}`;
+    artboard.name = `${ARTBOARD.NAME_PREFIX} - ${index + artboardNumberStart}`;
     artboard.layoutMode = "VERTICAL";
     artboard.primaryAxisSizingMode = "AUTO";
     artboard.counterAxisSizingMode = "AUTO";

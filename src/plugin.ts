@@ -1,6 +1,6 @@
 import {parseAndCreateArtboards, placeArtboardsOnCanvas} from "./builders";
 
-figma.showUI(__html__, {width: 560, height: 460});
+figma.showUI(__html__, {width: 560, height: 500});
 
 figma.ui.onmessage = async (msg) => {
     if (msg.type === "cancel") {
@@ -10,7 +10,10 @@ figma.ui.onmessage = async (msg) => {
     if (msg.type !== "import-json") return;
 
     try {
-        const artboards = await parseAndCreateArtboards(msg.payload);
+        const artboards = await parseAndCreateArtboards(
+            msg.payload,
+            msg.artboardNumberStart,
+        );
         placeArtboardsOnCanvas(artboards);
         figma.currentPage.selection = artboards;
         figma.viewport.scrollAndZoomIntoView(artboards);
