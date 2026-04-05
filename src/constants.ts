@@ -7,7 +7,6 @@ export const FRAME_PRESET_BY_STYLE: Readonly<Record<string, FramePreset>> = {
 };
 
 export const ARTBOARD = {
-    NAME_PREFIX: "A4",
     SPACING: 256,
     WIDTH: 595,
     ITEM_SPACING: 30,

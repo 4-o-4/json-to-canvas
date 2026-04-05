@@ -92,7 +92,10 @@ export function groupBlocksIntoNodes(blocks: TextSegment[]): JsonNode[] {
                     type: NodeType.FRAME,
                     name: preset,
                     children: [
-                        {type: NodeType.TEXT, textSegments: convertSegmentsToStyleObjects(run)},
+                        {
+                            type: NodeType.TEXT,
+                            textSegments: convertSegmentsToStyleObjects(run)
+                        },
                     ],
                 });
             }
@@ -102,7 +105,10 @@ export function groupBlocksIntoNodes(blocks: TextSegment[]): JsonNode[] {
                 run.push(blocks[i]);
                 i++;
             }
-            nodes.push({type: NodeType.TEXT, textSegments: convertSegmentsToStyleObjects(run)});
+            nodes.push({
+                type: NodeType.TEXT,
+                textSegments: convertSegmentsToStyleObjects(run)
+            });
         }
     }
 

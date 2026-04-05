@@ -23,11 +23,19 @@ function normalizeArtboardNumberStart(value: unknown): number {
     return Math.floor(n);
 }
 
+function normalizeArtboardNamePrefix(value: unknown): string {
+    if (typeof value !== "string") return "A4";
+    const t = value.trim();
+    return t.length > 0 ? t : "A4";
+}
+
 export async function parseAndCreateArtboards(
     payload: string,
     artboardNumberStart = 1,
+    artboardNamePrefix: unknown = "A4",
 ): Promise<FrameNode[]> {
     const start = normalizeArtboardNumberStart(artboardNumberStart);
+    const namePrefix = normalizeArtboardNamePrefix(artboardNamePrefix);
     const parsed = JSON.parse(payload) as unknown;
 
     if (!Array.isArray(parsed)) {
@@ -36,12 +44,14 @@ export async function parseAndCreateArtboards(
 
     if (parsed.length > 0 && parsed.every(Array.isArray)) {
         return Promise.all(
-            (parsed as unknown[][]).map((row, i) => createArtboardFromItems(row, i, start)),
+            (parsed as unknown[][]).map((row, i) =>
+                createArtboardFromItems(row, i, start, namePrefix),
+            ),
         );
     }
 
     if (parsed.every((item) => !Array.isArray(item))) {
-        return [await createArtboardFromItems(parsed as unknown[], 0, start)];
+        return [await createArtboardFromItems(parsed as unknown[], 0, start, namePrefix)];
     }
 
     throw new Error("Некорректный JSON: используйте [блок, …] или [[блок, …], …]");
@@ -67,8 +77,9 @@ async function createArtboardFromItems(
     items: unknown[],
     index: number,
     artboardNumberStart: number,
+    namePrefix: string,
 ): Promise<FrameNode> {
-    const artboard = createArtboard(index, artboardNumberStart);
+    const artboard = createArtboard(index, artboardNumberStart, namePrefix);
     if (items.length === 0) return artboard;
 
     if (isStyleBlockArray(items)) {
@@ -91,9 +102,9 @@ async function createArtboardFromItems(
     return artboard;
 }
 
-function createArtboard(index: number, artboardNumberStart: number): FrameNode {
+function createArtboard(index: number, artboardNumberStart: number, namePrefix: string): FrameNode {
     const artboard = figma.createFrame();
-    artboard.name = `${ARTBOARD.NAME_PREFIX} - ${index + artboardNumberStart}`;
+    artboard.name = `${namePrefix} - ${index + artboardNumberStart}`;
     artboard.layoutMode = "VERTICAL";
     artboard.primaryAxisSizingMode = "AUTO";
     artboard.counterAxisSizingMode = "AUTO";
@@ -262,7 +273,10 @@ async function resolveAllSegmentStyles(
 ): Promise<ResolvedSegment[]> {
     const resolved: ResolvedSegment[] = [];
     for (const segment of segments) {
-        resolved.push({segment, style: await resolveTextStyle(segment.textStyleName)});
+        resolved.push({
+            segment: segment,
+            style: await resolveTextStyle(segment.textStyleName)
+        });
     }
     return resolved;
 }
