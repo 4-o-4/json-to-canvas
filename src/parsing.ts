@@ -61,54 +61,53 @@ function convertSegmentsToStyleObjects(segments: TextSegment[]): unknown[] {
     return segments.map((s) => ({[s.textStyleName]: s.characters}));
 }
 
+function textNode(segments: TextSegment[]): JsonNode {
+    return {
+        type: NodeType.TEXT,
+        textSegments: convertSegmentsToStyleObjects(segments),
+    };
+}
+
+function frameNode(preset: FramePreset, segments: TextSegment[]): JsonNode {
+    return {
+        type: NodeType.FRAME,
+        name: preset,
+        children: [textNode(segments)],
+    };
+}
+
+function takeRun(
+    blocks: TextSegment[],
+    start: number,
+    matches: (block: TextSegment) => boolean,
+): TextSegment[] {
+    const run: TextSegment[] = [];
+    for (let i = start; i < blocks.length && matches(blocks[i]); i++) {
+        run.push(blocks[i]);
+    }
+    return run;
+}
+
 export function groupBlocksIntoNodes(blocks: TextSegment[]): JsonNode[] {
     const nodes: JsonNode[] = [];
     let i = 0;
 
     while (i < blocks.length) {
-        const preset = FRAME_PRESET_BY_STYLE[blocks[i].textStyleName];
+        const styleKey = blocks[i].textStyleName;
+        const preset = FRAME_PRESET_BY_STYLE[styleKey];
 
-        if (preset) {
-            if (preset === FramePreset.CODE) {
-                nodes.push({
-                    type: NodeType.FRAME,
-                    name: preset,
-                    children: [
-                        {
-                            type: NodeType.TEXT,
-                            textSegments: convertSegmentsToStyleObjects([blocks[i]]),
-                        },
-                    ],
-                });
-                i++;
-            } else {
-                const styleKey = blocks[i].textStyleName;
-                const run: TextSegment[] = [];
-                while (i < blocks.length && blocks[i].textStyleName === styleKey) {
-                    run.push(blocks[i]);
-                    i++;
-                }
-                nodes.push({
-                    type: NodeType.FRAME,
-                    name: preset,
-                    children: [
-                        {
-                            type: NodeType.TEXT,
-                            textSegments: convertSegmentsToStyleObjects(run)
-                        },
-                    ],
-                });
-            }
+        if (preset === FramePreset.CODE) {
+            // Каждый блок кода — отдельный фрейм.
+            nodes.push(frameNode(preset, [blocks[i]]));
+            i += 1;
+        } else if (preset) {
+            const run = takeRun(blocks, i, (b) => b.textStyleName === styleKey);
+            nodes.push(frameNode(preset, run));
+            i += run.length;
         } else {
-            const run: TextSegment[] = [];
-            while (i < blocks.length && !FRAME_PRESET_BY_STYLE[blocks[i].textStyleName]) {
-                run.push(blocks[i]);
-                i++;
-            }
-            nodes.push({
-                type: NodeType.TEXT,
-                textSegments: convertSegmentsToStyleObjects(run)
-            });
+            const run = takeRun(blocks, i, (b) => !FRAME_PRESET_BY_STYLE[b.textStyleName]);
+            nodes.push(textNode(run));
+            i += run.length;
         }
     }
 

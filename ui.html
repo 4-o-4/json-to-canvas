@@ -15,7 +15,7 @@
       }
       textarea {
         width: 100%;
-        height: 320px;
+        height: 300px;
         box-sizing: border-box;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 12px;
@@ -25,6 +25,7 @@
         display: flex;
         gap: 8px;
         margin-top: 12px;
+        flex-wrap: wrap;
       }
       button {
         border: 0;
@@ -36,6 +37,9 @@
         background: #18a0fb;
         color: white;
       }
+      #loadMdBtn {
+        background: #f0f0f0;
+      }
       #cancelBtn {
         background: #eee;
       }
@@ -44,6 +48,12 @@
         color: #666;
         font-size: 11px;
         line-height: 1.4;
+      }
+      .hint.warn {
+        color: #b45309;
+      }
+      .hint.ok {
+        color: #047857;
       }
       .field {
         display: flex;
@@ -101,10 +111,20 @@
       <input type="number" id="artboardNumberStart" min="1" step="1" value="1" />
     </div>
 
+    <input
+      type="file"
+      id="mdFileInput"
+      accept=".md,.markdown,text/markdown"
+      hidden
+    />
+
     <div class="row">
-      <button id="importBtn">Импортировать</button>
+      <button id="importBtn">Импортировать JSON</button>
+      <button id="loadMdBtn">Загрузить .md</button>
       <button id="cancelBtn">Закрыть</button>
     </div>
+
+    <div id="mdStatus" class="hint"></div>
 
     <div class="hint">
       Формат документа: <code>[ [ {"h2":"…"}, {"p":"…"}, {"code":"…"} ], … ]</code> — внутренний массив это один артборд.
@@ -115,32 +135,106 @@
       const artboardNamePrefix = document.getElementById("artboardNamePrefix");
       const artboardNumberStart = document.getElementById("artboardNumberStart");
       const importBtn = document.getElementById("importBtn");
+      const loadMdBtn = document.getElementById("loadMdBtn");
       const cancelBtn = document.getElementById("cancelBtn");
+      const mdFileInput = document.getElementById("mdFileInput");
+      const mdStatus = document.getElementById("mdStatus");
 
-      importBtn.onclick = () => {
+      function getArtboardSettings() {
         const startRaw = Number(artboardNumberStart.value);
         const artboardNumberStartValue =
           Number.isFinite(startRaw) && startRaw >= 1 ? Math.floor(startRaw) : 1;
-        parent.postMessage(
-          {
-            pluginMessage: {
-              type: "import-json",
-              payload: jsonInput.value,
-              artboardNamePrefix: artboardNamePrefix.value,
-              artboardNumberStart: artboardNumberStartValue
-            }
-          },
-          "*"
-        );
+        return {
+          artboardNamePrefix: artboardNamePrefix.value,
+          artboardNumberStart: artboardNumberStartValue,
+        };
+      }
+
+      function postToPlugin(message) {
+        parent.postMessage({ pluginMessage: message }, "*");
+      }
+
+      function setMdStatus(text, kind) {
+        mdStatus.textContent = text;
+        mdStatus.className = "hint" + (kind ? " " + kind : "");
+      }
+
+      function readMarkdownFile(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result ?? ""));
+          reader.onerror = () => reject(new Error("Не удалось прочитать файл"));
+          reader.readAsText(file);
+        });
+      }
+
+      loadMdBtn.onclick = () => {
+        mdFileInput.click();
+      };
+
+      mdFileInput.onchange = async () => {
+        const file = mdFileInput.files && mdFileInput.files[0];
+        mdFileInput.value = "";
+        if (!file) return;
+
+        const name = file.name.toLowerCase();
+        if (!name.endsWith(".md") && !name.endsWith(".markdown")) {
+          setMdStatus("Выберите файл .md или .markdown", "warn");
+          return;
+        }
+
+        try {
+          setMdStatus("Конвертация…");
+          const markdown = await readMarkdownFile(file);
+          postToPlugin({
+            type: "convert-markdown",
+            payload: markdown,
+            fileName: file.name,
+          });
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Неизвестная ошибка";
+          setMdStatus(message, "warn");
+        }
+      };
+
+      importBtn.onclick = () => {
+        postToPlugin({
+          type: "import-json",
+          payload: jsonInput.value,
+          ...getArtboardSettings(),
+        });
       };
 
       cancelBtn.onclick = () => {
-        parent.postMessage(
-          {
-            pluginMessage: { type: "cancel" }
-          },
-          "*"
-        );
+        postToPlugin({ type: "cancel" });
+      };
+
+      window.onmessage = (event) => {
+        const msg = event.data.pluginMessage;
+        if (!msg) return;
+
+        if (msg.type === "markdown-converted") {
+          jsonInput.value = msg.payload;
+          const warnings = Array.isArray(msg.warnings) ? msg.warnings : [];
+          if (warnings.length > 0) {
+            setMdStatus(
+              (msg.fileName ? msg.fileName + ": " : "") + warnings.join("; "),
+              "warn"
+            );
+          } else {
+            setMdStatus(
+              (msg.fileName ? msg.fileName + " — " : "") +
+                "сконвертирован, можно импортировать",
+              "ok"
+            );
+          }
+          return;
+        }
+
+        if (msg.type === "markdown-error") {
+          setMdStatus(msg.message || "Ошибка конвертации", "warn");
+        }
       };
     </script>
   </body>

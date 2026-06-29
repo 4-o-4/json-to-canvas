@@ -7,7 +7,7 @@ import {
     ResolvedSegment,
     FramePreset,
 } from "./types";
-import {ARTBOARD, CODE_FRAME, H2_PAINT_STYLE_NAME} from "./constants";
+import {ARTBOARD, CODE_FRAME, CODE_LINE_SEPARATOR, H2_PAINT_STYLE_NAME} from "./constants";
 import {resolveTextStyle, resolvePaintStyleId, convertToFigmaPaints} from "./styles";
 import {
     assertJsonNode,
@@ -82,24 +82,22 @@ async function createArtboardFromItems(
     const artboard = createArtboard(index, artboardNumberStart, namePrefix);
     if (items.length === 0) return artboard;
 
-    if (isStyleBlockArray(items)) {
-        const blocks = items.map((raw, j) => parseTextSegment(raw, j));
-        const nodeJsons = groupBlocksIntoNodes(blocks);
-        for (const nodeJson of nodeJsons) {
-            const child = await createSceneNode(nodeJson);
-            artboard.appendChild(child);
-            applyLayoutSizing(child, nodeJson, artboard);
-        }
-        return artboard;
-    }
-
-    for (const item of items) {
-        assertJsonNode(item);
-        const child = await createSceneNode(item);
+    for (const nodeJson of resolveNodeJsons(items)) {
+        const child = await createSceneNode(nodeJson);
         artboard.appendChild(child);
-        applyLayoutSizing(child, item, artboard);
+        applyLayoutSizing(child, nodeJson, artboard);
     }
     return artboard;
+}
+
+function resolveNodeJsons(items: unknown[]): JsonNode[] {
+    if (isStyleBlockArray(items)) {
+        return groupBlocksIntoNodes(items.map(parseTextSegment));
+    }
+    return items.map((item) => {
+        assertJsonNode(item);
+        return item;
+    });
 }
 
 function createArtboard(index: number, artboardNumberStart: number, namePrefix: string): FrameNode {
@@ -282,6 +280,12 @@ async function resolveAllSegmentStyles(
 }
 
 function flattenSegmentText(segment: TextSegment): string {
+    if (segment.textStyleName === "code") {
+        if (Array.isArray(segment.characters)) {
+            return segment.characters.join(CODE_LINE_SEPARATOR);
+        }
+        return segment.characters.split(/\r\n|\r|\n/).join(CODE_LINE_SEPARATOR);
+    }
     return Array.isArray(segment.characters)
         ? segment.characters.join("\n")
         : segment.characters;

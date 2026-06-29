@@ -6,6 +6,8 @@ export const FRAME_PRESET_BY_STYLE: Readonly<Record<string, FramePreset>> = {
     code: FramePreset.CODE,
 };
 
+export const CODE_LINE_SEPARATOR = "\u2028";
+
 export const ARTBOARD = {
     SPACING: 256,
     WIDTH: 595,
