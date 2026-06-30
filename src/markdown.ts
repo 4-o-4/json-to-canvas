@@ -2,8 +2,10 @@ import {Parser, TextRenderer, type Token, type Tokens} from "marked";
 import {CODE_LINE_SEPARATOR} from "./constants";
 import type {MarkdownStyleMapping} from "./markdown-config";
 import {tokenizeMarkdown} from "./markdown-tokenize";
+import type {TableContent} from "./types";
 
-export type StyleBlock = Record<string, string | string[]>;
+export type StyleBlockValue = string | string[] | TableContent;
+export type StyleBlock = Record<string, StyleBlockValue>;
 
 export type MarkdownConversionResult = {
     blocks: StyleBlock[] | StyleBlock[][];
@@ -111,12 +113,30 @@ function tokenToStyleBlock(
             if (!text) return null;
             return {[mapping.blockquote]: text};
         }
+        case "table": {
+            const table = token as Tokens.Table;
+            if (table.header.length === 0) return null;
+            const headerRow = table.header.map((cell) => tableCellText(cell).trim());
+            const dataRows = table.rows.map((row) =>
+                row.map((cell) => tableCellText(cell).trim()),
+            );
+            return {
+                [mapping.table]: [headerRow, ...dataRows],
+            };
+        }
         case "space":
             return null;
         default:
             warnings.push(`Блок «${token.type}» не поддерживается — пропущен`);
             return null;
     }
+}
+
+function tableCellText(cell: Tokens.TableCell): string {
+    if (cell.tokens && cell.tokens.length > 0) {
+        return tokensToPlainText(cell.tokens);
+    }
+    return cell.text;
 }
 
 function listItemText(item: Tokens.ListItem): string {

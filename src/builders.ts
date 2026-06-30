@@ -10,6 +10,7 @@ import {
 import {
     ARTBOARD,
     CODE_FRAME,
+    TABLE_FRAME,
     CODE_LINE_SEPARATOR,
     HEADING_PAINT_STYLE_NAME,
     HEADING_TEXT_STYLE_NAMES,
@@ -148,19 +149,34 @@ async function createFrameNode(json: JsonNode): Promise<FrameNode> {
 }
 
 function applyFramePreset(node: FrameNode, name?: string): void {
-    if (name !== FramePreset.CODE) return;
+    if (name === FramePreset.CODE) {
+        node.layoutMode = "VERTICAL";
+        node.primaryAxisSizingMode = "AUTO";
+        node.counterAxisSizingMode = "AUTO";
+        node.itemSpacing = CODE_FRAME.ITEM_SPACING;
+        applyPadding(node, CODE_FRAME.PADDING);
+        node.cornerRadius = CODE_FRAME.CORNER_RADIUS;
+        node.strokeWeight = CODE_FRAME.STROKE_WEIGHT;
+        node.strokes = convertToFigmaPaints([{type: "SOLID", color: CODE_FRAME.STROKE_COLOR}]);
+        node.fills = convertToFigmaPaints([
+            {type: "SOLID", color: CODE_FRAME.FILL_COLOR, opacity: CODE_FRAME.FILL_OPACITY},
+        ]);
+        return;
+    }
+
+    if (name !== FramePreset.TABLE) return;
 
     node.layoutMode = "VERTICAL";
     node.primaryAxisSizingMode = "AUTO";
     node.counterAxisSizingMode = "AUTO";
-    node.itemSpacing = CODE_FRAME.ITEM_SPACING;
-    applyPadding(node, CODE_FRAME.PADDING);
-    node.cornerRadius = CODE_FRAME.CORNER_RADIUS;
-    node.strokeWeight = CODE_FRAME.STROKE_WEIGHT;
-    node.strokes = convertToFigmaPaints([{type: "SOLID", color: CODE_FRAME.STROKE_COLOR}]);
-    node.fills = convertToFigmaPaints([
-        {type: "SOLID", color: CODE_FRAME.FILL_COLOR, opacity: CODE_FRAME.FILL_OPACITY},
-    ]);
+    node.itemSpacing = TABLE_FRAME.ITEM_SPACING;
+    applyPadding(node, TABLE_FRAME.PADDING);
+    node.strokeTopWeight = 0;
+    node.strokeRightWeight = 0;
+    node.strokeBottomWeight = TABLE_FRAME.STROKE_WEIGHT;
+    node.strokeLeftWeight = 0;
+    node.strokes = convertToFigmaPaints([{type: "SOLID", color: TABLE_FRAME.STROKE_COLOR}]);
+    node.fills = [];
 }
 
 function applyFrameLayout(node: FrameNode, json: JsonNode): void {
@@ -198,6 +214,10 @@ function finalizeFrameSize(node: FrameNode, json: JsonNode): void {
 function applyFillsAndStrokes(node: FrameNode, json: JsonNode): void {
     if (json.fills) node.fills = convertToFigmaPaints(json.fills);
     if (typeof json.strokeWeight === "number") node.strokeWeight = json.strokeWeight;
+    if (typeof json.strokeTopWeight === "number") node.strokeTopWeight = json.strokeTopWeight;
+    if (typeof json.strokeRightWeight === "number") node.strokeRightWeight = json.strokeRightWeight;
+    if (typeof json.strokeBottomWeight === "number") node.strokeBottomWeight = json.strokeBottomWeight;
+    if (typeof json.strokeLeftWeight === "number") node.strokeLeftWeight = json.strokeLeftWeight;
     if (json.strokes) node.strokes = convertToFigmaPaints(json.strokes);
 }
 
@@ -229,12 +249,15 @@ async function createTextNode(json: JsonNode): Promise<TextNode> {
     if (json.textAlignVertical) node.textAlignVertical = json.textAlignVertical;
     node.textAutoResize = json.textAutoResize ?? "HEIGHT";
 
-    if (
-        typeof json.width === "number" &&
-        typeof json.height === "number" &&
-        node.textAutoResize === "NONE"
-    ) {
-        node.resize(json.width, json.height);
+    if (typeof json.width === "number") {
+        if (node.textAutoResize === "HEIGHT") {
+            node.resize(json.width, Math.max(node.height, 1));
+        } else if (
+            typeof json.height === "number" &&
+            node.textAutoResize === "NONE"
+        ) {
+            node.resize(json.width, json.height);
+        }
     }
 
     return node;

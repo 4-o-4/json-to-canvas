@@ -1,5 +1,14 @@
-import {FramePreset, JsonNode, NodeType, TextSegment} from "./types";
-import {FRAME_PRESET_BY_STYLE} from "./constants";
+import {
+    FramePreset,
+    JsonNode,
+    isTableContent,
+    LayoutSizing,
+    NodeType,
+    TableContent,
+    TextSegment,
+    tableColumnCount,
+} from "./types";
+import {FRAME_PRESET_BY_STYLE, TABLE_ROW_FRAME, tableCellWidth} from "./constants";
 
 export function isJsonNode(value: unknown): value is JsonNode {
     if (typeof value !== "object" || value === null) return false;
@@ -19,7 +28,13 @@ export function isStyleBlock(value: unknown): boolean {
     if (typeof value !== "object" || value === null) return false;
     const o = value as Record<string, unknown>;
     if ("type" in o) return false;
-    return Object.keys(o).length === 1;
+    const keys = Object.keys(o);
+    if (keys.length !== 1) return false;
+    const blockValue = o[keys[0]];
+    if (typeof blockValue === "string") return true;
+    if (isTableContent(blockValue)) return true;
+    if (Array.isArray(blockValue) && blockValue.every((x) => typeof x === "string")) return true;
+    return false;
 }
 
 export function isStyleBlockArray(items: unknown[]): boolean {
@@ -39,6 +54,9 @@ export function parseTextSegment(raw: unknown, index: number): TextSegment {
     }
     const textStyleName = keys[0];
     const value = o[textStyleName];
+    if (isTableContent(value)) {
+        return {textStyleName, characters: "", table: value};
+    }
     if (typeof value === "string") {
         return {textStyleName, characters: value};
     }
@@ -46,7 +64,7 @@ export function parseTextSegment(raw: unknown, index: number): TextSegment {
         return {textStyleName, characters: value};
     }
     throw new Error(
-        `Элемент [${index}]: значение для "${textStyleName}" должно быть строкой или массивом строк`,
+        `Элемент [${index}]: значение для "${textStyleName}" должно быть строкой, массивом строк или таблицей`,
     );
 }
 
@@ -76,6 +94,56 @@ function frameNode(preset: FramePreset, segments: TextSegment[]): JsonNode {
     };
 }
 
+function tableCellNode(textStyleName: string, text: string, columns: number): JsonNode {
+    return {
+        type: NodeType.TEXT,
+        width: tableCellWidth(columns),
+        layoutSizingHorizontal: LayoutSizing.FIXED,
+        textAutoResize: "HEIGHT",
+        textSegments: [{[textStyleName]: text}],
+    };
+}
+
+function tableRowNode(
+    textStyleName: string,
+    cells: string[],
+    columns: number,
+    isLast: boolean,
+): JsonNode {
+    return {
+        type: NodeType.FRAME,
+        layoutMode: "HORIZONTAL",
+        primaryAxisSizingMode: "AUTO",
+        counterAxisSizingMode: "AUTO",
+        paddingTop: TABLE_ROW_FRAME.PADDING.top,
+        paddingBottom: TABLE_ROW_FRAME.PADDING.bottom,
+        itemSpacing: TABLE_ROW_FRAME.ITEM_SPACING,
+        ...(isLast
+            ? {}
+            : {
+                strokeTopWeight: 0,
+                strokeRightWeight: 0,
+                strokeBottomWeight: TABLE_ROW_FRAME.STROKE_WEIGHT,
+                strokeLeftWeight: 0,
+                strokes: [{type: "SOLID" as const, color: TABLE_ROW_FRAME.STROKE_COLOR}],
+                fills: [],
+            }),
+        children: cells.map((cell) => tableCellNode(textStyleName, cell, columns)),
+    };
+}
+
+function tableNode(textStyleName: string, rows: TableContent): JsonNode {
+    const columns = tableColumnCount(rows);
+    const lastRowIndex = rows.length - 1;
+    return {
+        type: NodeType.FRAME,
+        name: FramePreset.TABLE,
+        children: rows.map((row, index) =>
+            tableRowNode(textStyleName, row, columns, index === lastRowIndex),
+        ),
+    };
+}
+
 function takeRun(
     blocks: TextSegment[],
     start: number,
@@ -99,6 +167,13 @@ export function groupBlocksIntoNodes(blocks: TextSegment[]): JsonNode[] {
         if (preset === FramePreset.CODE) {
             // Каждый блок кода — отдельный фрейм.
             nodes.push(frameNode(preset, [blocks[i]]));
+            i += 1;
+        } else if (preset === FramePreset.TABLE) {
+            const segment = blocks[i];
+            if (!segment.table) {
+                throw new Error(`Блок "${styleKey}" должен содержать таблицу`);
+            }
+            nodes.push(tableNode(styleKey, segment.table));
             i += 1;
         } else if (preset) {
             const run = takeRun(blocks, i, (b) => b.textStyleName === styleKey);

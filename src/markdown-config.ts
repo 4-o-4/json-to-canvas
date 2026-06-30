@@ -4,6 +4,7 @@ export type MarkdownStyleMapping = {
     code: string;
     list: string;
     blockquote: string;
+    table: string;
     /** false — не разбивать документ на артборды по горизонтальной линии `---` */
     artboardSeparator?: boolean;
 };
@@ -21,4 +22,5 @@ export const MARKDOWN_STYLE_MAPPING: MarkdownStyleMapping = {
     code: "code",
     list: "p",
     blockquote: "p",
+    table: "table",
 };

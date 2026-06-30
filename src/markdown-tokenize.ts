@@ -3,7 +3,7 @@ import {CODE_LINE_SEPARATOR} from "./constants";
 
 export function tokenizeMarkdown(markdown: string): Token[] {
     const tokenizer = new Tokenizer();
-    const lexer = new Lexer({tokenizer});
+    const lexer = new Lexer({tokenizer, gfm: true});
     const normalized = markdown.replace(/\r\n|\r/g, "\n");
     const tokens: Token[] = [];
 

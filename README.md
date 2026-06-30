@@ -26,6 +26,7 @@ Multiple artboards:
 | `h3` | Text with the `h3` style |
 | `p` | Paragraph with the `p` style |
 | `code` | Code in a frame with the Code preset |
+| `table` | Table in a frame with the Table preset |
 
 The key is the name of a local text style in the Figma file.
 
@@ -35,11 +36,12 @@ The key is the name of a local text style in the Figma file.
   {"h2": "H2 Heading"},
   {"p": "Main paragraph text."},
   {"p": "Another paragraph in a row."},
-  {"code": "print(\"Hello, World!\")"}
+  {"code": "print(\"Hello, World!\")"},
+  {"table": [["A", "B", "C"], ["1", "2", "3"]]}
 ]
 ```
 
-Consecutive blocks (except `code`) are merged into a single text node.
+Consecutive blocks (except `code` and `table`) are merged into a single text node.
 
 #### Value type
 
@@ -54,6 +56,7 @@ Consecutive blocks (except `code`) are merged into a single text node.
 
 | Key | Behavior |
 |-----|----------|
-| `code` | Wrapped in a frame with the Code preset (background, stroke, padding) |
+| `code` | Wrapped in a frame with the Code preset (background, stroke, padding). Each block is a separate frame. |
+| `table` | Wrapped in a frame with the Table preset. Each block is a separate table. |
 | `h2`, `h3` | Additionally applies a paint style named `"4654D9"` |
 | `p` | Inserts a double line break `\n\n` before the next `h2` or `h3` instead of a single one |
