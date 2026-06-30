@@ -7,7 +7,13 @@ import {
     ResolvedSegment,
     FramePreset,
 } from "./types";
-import {ARTBOARD, CODE_FRAME, CODE_LINE_SEPARATOR, H2_PAINT_STYLE_NAME} from "./constants";
+import {
+    ARTBOARD,
+    CODE_FRAME,
+    CODE_LINE_SEPARATOR,
+    HEADING_PAINT_STYLE_NAME,
+    HEADING_TEXT_STYLE_NAMES,
+} from "./constants";
 import {resolveTextStyle, resolvePaintStyleId, convertToFigmaPaints} from "./styles";
 import {
     assertJsonNode,
@@ -216,8 +222,8 @@ async function createTextNode(json: JsonNode): Promise<TextNode> {
     const node = figma.createText();
     applyCommonProperties(node, json);
 
-    const h2PaintStyleId = await resolvePaintStyleId(H2_PAINT_STYLE_NAME);
-    await applyStyledSegments(node, segments, h2PaintStyleId);
+    const headingPaintStyleId = await resolvePaintStyleId(HEADING_PAINT_STYLE_NAME);
+    await applyStyledSegments(node, segments, headingPaintStyleId);
 
     if (json.textAlignHorizontal) node.textAlignHorizontal = json.textAlignHorizontal;
     if (json.textAlignVertical) node.textAlignVertical = json.textAlignVertical;
@@ -237,7 +243,7 @@ async function createTextNode(json: JsonNode): Promise<TextNode> {
 async function applyStyledSegments(
     node: TextNode,
     segments: TextSegment[],
-    h2PaintStyleId: string | null,
+    headingPaintStyleId: string | null,
 ): Promise<void> {
     const resolved = await resolveAllSegmentStyles(segments);
 
@@ -259,8 +265,8 @@ async function applyStyledSegments(
         if (Array.isArray(segment.characters)) {
             applyUnorderedListStyle(node, offset, end);
         }
-        if (segment.textStyleName === "h2" && h2PaintStyleId) {
-            await node.setRangeFillStyleIdAsync(offset, end, h2PaintStyleId);
+        if (HEADING_TEXT_STYLE_NAMES.has(segment.textStyleName) && headingPaintStyleId) {
+            await node.setRangeFillStyleIdAsync(offset, end, headingPaintStyleId);
         }
         offset = end + (separators[i]?.length ?? 0);
     }
@@ -294,7 +300,9 @@ function flattenSegmentText(segment: TextSegment): string {
 function computeSegmentSeparators(resolved: ResolvedSegment[]): string[] {
     return resolved.slice(0, -1).map((r, i) => {
         const isParagraph = r.segment.textStyleName === "p";
-        const nextIsHeading = resolved[i + 1].segment.textStyleName === "h2";
+        const nextIsHeading = HEADING_TEXT_STYLE_NAMES.has(
+            resolved[i + 1].segment.textStyleName,
+        );
         return isParagraph && nextIsHeading ? "\n\n" : "\n";
     });
 }

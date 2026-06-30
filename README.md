@@ -23,6 +23,7 @@ Multiple artboards:
 |-----|-------------|
 | `h1` | Text with the `h1` style |
 | `h2` | Text with the `h2` style |
+| `h3` | Text with the `h3` style |
 | `p` | Paragraph with the `p` style |
 | `code` | Code in a frame with the Code preset |
 
@@ -54,5 +55,5 @@ Consecutive blocks (except `code`) are merged into a single text node.
 | Key | Behavior |
 |-----|----------|
 | `code` | Wrapped in a frame with the Code preset (background, stroke, padding) |
-| `h2` | Additionally applies a paint style named `"4654D9"` |
-| `p` | Inserts a double line break `\n\n` before the next `h2` instead of a single one |
+| `h2`, `h3` | Additionally applies a paint style named `"4654D9"` |
+| `p` | Inserts a double line break `\n\n` before the next `h2` or `h3` instead of a single one |

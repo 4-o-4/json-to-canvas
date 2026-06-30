@@ -1,6 +1,8 @@
 import {FramePreset, HexColor, Padding} from "./types";
 
-export const H2_PAINT_STYLE_NAME = "4654D9";
+export const HEADING_PAINT_STYLE_NAME = "4654D9";
+
+export const HEADING_TEXT_STYLE_NAMES = new Set(["h2", "h3"]);
 
 export const FRAME_PRESET_BY_STYLE: Readonly<Record<string, FramePreset>> = {
     code: FramePreset.CODE,
