@@ -19,16 +19,7 @@ Multiple artboards:
 
 #### Style blocks
 
-| Key | Description |
-|-----|-------------|
-| `h1` | Text with the `h1` style |
-| `h2` | Text with the `h2` style |
-| `h3` | Text with the `h3` style |
-| `p` | Paragraph with the `p` style |
-| `code` | Code in a frame with the Code preset |
-| `table` | Table in a frame with the Table preset |
-
-The key is the name of a local text style in the Figma file.
+The key is the name of a local text style in the Figma file (for example `h1`, `h2`, `p`).
 
 ```json
 [
