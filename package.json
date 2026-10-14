@@ -42,5 +42,8 @@
         }
       ]
     }
+  },
+  "dependencies": {
+    "marked": "^18.0.5"
   }
 }

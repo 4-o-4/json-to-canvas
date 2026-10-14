@@ -7,6 +7,7 @@ export enum NodeType {
 
 export enum FramePreset {
     CODE = "Code",
+    TABLE = "Table",
 }
 
 export const LayoutSizing = {
@@ -21,9 +22,30 @@ export type JsonPaint = {
     opacity?: number;
 };
 
+export type TableContent = string[][];
+
+export function tableColumnCount(rows: TableContent): number {
+    return rows[0]?.length ?? 0;
+}
+
+export function isTableContent(value: unknown): value is TableContent {
+    if (!Array.isArray(value) || value.length === 0) return false;
+    const firstRow = value[0];
+    if (!Array.isArray(firstRow) || firstRow.length === 0) return false;
+    if (!firstRow.every((cell) => typeof cell === "string")) return false;
+    const columns = firstRow.length;
+    return value.every(
+        (row) =>
+            Array.isArray(row) &&
+            row.length === columns &&
+            row.every((cell) => typeof cell === "string"),
+    );
+}
+
 export type TextSegment = {
     textStyleName: string;
     characters: string | string[];
+    table?: TableContent;
 };
 
 export type Padding = {
@@ -62,6 +84,10 @@ export type JsonNode = {
     clipsContent?: boolean;
     cornerRadius?: number;
     strokeWeight?: number;
+    strokeTopWeight?: number;
+    strokeRightWeight?: number;
+    strokeBottomWeight?: number;
+    strokeLeftWeight?: number;
     strokes?: JsonPaint[];
 
     layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";

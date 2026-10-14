@@ -7,7 +7,14 @@ import {
     ResolvedSegment,
     FramePreset,
 } from "./types";
-import {ARTBOARD, CODE_FRAME, H2_PAINT_STYLE_NAME} from "./constants";
+import {
+    ARTBOARD,
+    CODE_FRAME,
+    TABLE_FRAME,
+    CODE_LINE_SEPARATOR,
+    HEADING_PAINT_STYLE_NAME,
+    HEADING_TEXT_STYLE_NAMES,
+} from "./constants";
 import {resolveTextStyle, resolvePaintStyleId, convertToFigmaPaints} from "./styles";
 import {
     assertJsonNode,
@@ -82,24 +89,22 @@ async function createArtboardFromItems(
     const artboard = createArtboard(index, artboardNumberStart, namePrefix);
     if (items.length === 0) return artboard;
 
-    if (isStyleBlockArray(items)) {
-        const blocks = items.map((raw, j) => parseTextSegment(raw, j));
-        const nodeJsons = groupBlocksIntoNodes(blocks);
-        for (const nodeJson of nodeJsons) {
-            const child = await createSceneNode(nodeJson);
-            artboard.appendChild(child);
-            applyLayoutSizing(child, nodeJson, artboard);
-        }
-        return artboard;
-    }
-
-    for (const item of items) {
-        assertJsonNode(item);
-        const child = await createSceneNode(item);
+    for (const nodeJson of resolveNodeJsons(items)) {
+        const child = await createSceneNode(nodeJson);
         artboard.appendChild(child);
-        applyLayoutSizing(child, item, artboard);
+        applyLayoutSizing(child, nodeJson, artboard);
     }
     return artboard;
+}
+
+function resolveNodeJsons(items: unknown[]): JsonNode[] {
+    if (isStyleBlockArray(items)) {
+        return groupBlocksIntoNodes(items.map(parseTextSegment));
+    }
+    return items.map((item) => {
+        assertJsonNode(item);
+        return item;
+    });
 }
 
 function createArtboard(index: number, artboardNumberStart: number, namePrefix: string): FrameNode {
@@ -144,19 +149,34 @@ async function createFrameNode(json: JsonNode): Promise<FrameNode> {
 }
 
 function applyFramePreset(node: FrameNode, name?: string): void {
-    if (name !== FramePreset.CODE) return;
+    if (name === FramePreset.CODE) {
+        node.layoutMode = "VERTICAL";
+        node.primaryAxisSizingMode = "AUTO";
+        node.counterAxisSizingMode = "AUTO";
+        node.itemSpacing = CODE_FRAME.ITEM_SPACING;
+        applyPadding(node, CODE_FRAME.PADDING);
+        node.cornerRadius = CODE_FRAME.CORNER_RADIUS;
+        node.strokeWeight = CODE_FRAME.STROKE_WEIGHT;
+        node.strokes = convertToFigmaPaints([{type: "SOLID", color: CODE_FRAME.STROKE_COLOR}]);
+        node.fills = convertToFigmaPaints([
+            {type: "SOLID", color: CODE_FRAME.FILL_COLOR, opacity: CODE_FRAME.FILL_OPACITY},
+        ]);
+        return;
+    }
+
+    if (name !== FramePreset.TABLE) return;
 
     node.layoutMode = "VERTICAL";
     node.primaryAxisSizingMode = "AUTO";
     node.counterAxisSizingMode = "AUTO";
-    node.itemSpacing = CODE_FRAME.ITEM_SPACING;
-    applyPadding(node, CODE_FRAME.PADDING);
-    node.cornerRadius = CODE_FRAME.CORNER_RADIUS;
-    node.strokeWeight = CODE_FRAME.STROKE_WEIGHT;
-    node.strokes = convertToFigmaPaints([{type: "SOLID", color: CODE_FRAME.STROKE_COLOR}]);
-    node.fills = convertToFigmaPaints([
-        {type: "SOLID", color: CODE_FRAME.FILL_COLOR, opacity: CODE_FRAME.FILL_OPACITY},
-    ]);
+    node.itemSpacing = TABLE_FRAME.ITEM_SPACING;
+    applyPadding(node, TABLE_FRAME.PADDING);
+    node.strokeTopWeight = 0;
+    node.strokeRightWeight = 0;
+    node.strokeBottomWeight = TABLE_FRAME.STROKE_WEIGHT;
+    node.strokeLeftWeight = 0;
+    node.strokes = convertToFigmaPaints([{type: "SOLID", color: TABLE_FRAME.STROKE_COLOR}]);
+    node.fills = [];
 }
 
 function applyFrameLayout(node: FrameNode, json: JsonNode): void {
@@ -194,6 +214,10 @@ function finalizeFrameSize(node: FrameNode, json: JsonNode): void {
 function applyFillsAndStrokes(node: FrameNode, json: JsonNode): void {
     if (json.fills) node.fills = convertToFigmaPaints(json.fills);
     if (typeof json.strokeWeight === "number") node.strokeWeight = json.strokeWeight;
+    if (typeof json.strokeTopWeight === "number") node.strokeTopWeight = json.strokeTopWeight;
+    if (typeof json.strokeRightWeight === "number") node.strokeRightWeight = json.strokeRightWeight;
+    if (typeof json.strokeBottomWeight === "number") node.strokeBottomWeight = json.strokeBottomWeight;
+    if (typeof json.strokeLeftWeight === "number") node.strokeLeftWeight = json.strokeLeftWeight;
     if (json.strokes) node.strokes = convertToFigmaPaints(json.strokes);
 }
 
@@ -218,19 +242,22 @@ async function createTextNode(json: JsonNode): Promise<TextNode> {
     const node = figma.createText();
     applyCommonProperties(node, json);
 
-    const h2PaintStyleId = await resolvePaintStyleId(H2_PAINT_STYLE_NAME);
-    await applyStyledSegments(node, segments, h2PaintStyleId);
+    const headingPaintStyleId = await resolvePaintStyleId(HEADING_PAINT_STYLE_NAME);
+    await applyStyledSegments(node, segments, headingPaintStyleId);
 
     if (json.textAlignHorizontal) node.textAlignHorizontal = json.textAlignHorizontal;
     if (json.textAlignVertical) node.textAlignVertical = json.textAlignVertical;
     node.textAutoResize = json.textAutoResize ?? "HEIGHT";
 
-    if (
-        typeof json.width === "number" &&
-        typeof json.height === "number" &&
-        node.textAutoResize === "NONE"
-    ) {
-        node.resize(json.width, json.height);
+    if (typeof json.width === "number") {
+        if (node.textAutoResize === "HEIGHT") {
+            node.resize(json.width, Math.max(node.height, 1));
+        } else if (
+            typeof json.height === "number" &&
+            node.textAutoResize === "NONE"
+        ) {
+            node.resize(json.width, json.height);
+        }
     }
 
     return node;
@@ -239,7 +266,7 @@ async function createTextNode(json: JsonNode): Promise<TextNode> {
 async function applyStyledSegments(
     node: TextNode,
     segments: TextSegment[],
-    h2PaintStyleId: string | null,
+    headingPaintStyleId: string | null,
 ): Promise<void> {
     const resolved = await resolveAllSegmentStyles(segments);
 
@@ -261,8 +288,8 @@ async function applyStyledSegments(
         if (Array.isArray(segment.characters)) {
             applyUnorderedListStyle(node, offset, end);
         }
-        if (segment.textStyleName === "h2" && h2PaintStyleId) {
-            await node.setRangeFillStyleIdAsync(offset, end, h2PaintStyleId);
+        if (HEADING_TEXT_STYLE_NAMES.has(segment.textStyleName) && headingPaintStyleId) {
+            await node.setRangeFillStyleIdAsync(offset, end, headingPaintStyleId);
         }
         offset = end + (separators[i]?.length ?? 0);
     }
@@ -282,6 +309,12 @@ async function resolveAllSegmentStyles(
 }
 
 function flattenSegmentText(segment: TextSegment): string {
+    if (segment.textStyleName === "code") {
+        if (Array.isArray(segment.characters)) {
+            return segment.characters.join(CODE_LINE_SEPARATOR);
+        }
+        return segment.characters.split(/\r\n|\r|\n/).join(CODE_LINE_SEPARATOR);
+    }
     return Array.isArray(segment.characters)
         ? segment.characters.join("\n")
         : segment.characters;
@@ -290,7 +323,9 @@ function flattenSegmentText(segment: TextSegment): string {
 function computeSegmentSeparators(resolved: ResolvedSegment[]): string[] {
     return resolved.slice(0, -1).map((r, i) => {
         const isParagraph = r.segment.textStyleName === "p";
-        const nextIsHeading = resolved[i + 1].segment.textStyleName === "h2";
+        const nextIsHeading = HEADING_TEXT_STYLE_NAMES.has(
+            resolved[i + 1].segment.textStyleName,
+        );
         return isParagraph && nextIsHeading ? "\n\n" : "\n";
     });
 }
