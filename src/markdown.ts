@@ -34,6 +34,11 @@ function formatCodeBlockText(text: string): string {
     return text.split(/\r\n|\r|\n/).join(CODE_LINE_SEPARATOR);
 }
 
+export type MarkdownFileInput = {
+    name: string;
+    content: string;
+};
+
 export function markdownToLayout(
     markdown: string,
     mapping: MarkdownStyleMapping,
@@ -72,6 +77,69 @@ export function markdownToLayout(
         return {blocks: nonEmpty[0], warnings};
     }
     return {blocks: nonEmpty, warnings};
+}
+
+export function markdownFilesToLayout(
+    files: MarkdownFileInput[],
+    mapping: MarkdownStyleMapping,
+): MarkdownConversionResult {
+    if (files.length === 0) {
+        return {blocks: [], warnings: ["Файлы не выбраны"]};
+    }
+
+    const sorted = [...files].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: "base"}),
+    );
+
+    if (sorted.length === 1) {
+        return markdownToLayout(sorted[0].content, mapping);
+    }
+
+    const perFileMapping: MarkdownStyleMapping = {
+        ...mapping,
+        artboardSeparator: false,
+    };
+    const artboards: StyleBlock[][] = [];
+    const warnings: string[] = [];
+
+    for (const file of sorted) {
+        const {blocks, warnings: fileWarnings} = markdownToLayout(
+            file.content,
+            perFileMapping,
+        );
+        for (const warning of fileWarnings) {
+            warnings.push(`${file.name}: ${warning}`);
+        }
+        const board = normalizeToSingleArtboard(blocks);
+        if (board.length > 0) {
+            artboards.push(board);
+        }
+    }
+
+    if (artboards.length === 0) {
+        return {blocks: [], warnings};
+    }
+    if (artboards.length === 1) {
+        return {blocks: artboards[0], warnings};
+    }
+    return {blocks: artboards, warnings};
+}
+
+function normalizeToSingleArtboard(
+    blocks: StyleBlock[] | StyleBlock[][],
+): StyleBlock[] {
+    if (blocks.length === 0) return [];
+    if (Array.isArray(blocks[0])) {
+        const nested = blocks as StyleBlock[][];
+        const merged: StyleBlock[] = [];
+        for (const board of nested) {
+            for (const block of board) {
+                merged.push(block);
+            }
+        }
+        return merged;
+    }
+    return blocks as StyleBlock[];
 }
 
 function tokenToStyleBlock(

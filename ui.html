@@ -115,6 +115,7 @@
       type="file"
       id="mdFileInput"
       accept=".md,.markdown,text/markdown"
+      multiple
       hidden
     />
 
@@ -168,29 +169,61 @@
         });
       }
 
+      function isMarkdownFile(file) {
+        const name = file.name.toLowerCase();
+        return name.endsWith(".md") || name.endsWith(".markdown");
+      }
+
+      function sortFilesByName(files) {
+        return [...files].sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          })
+        );
+      }
+
       loadMdBtn.onclick = () => {
         mdFileInput.click();
       };
 
       mdFileInput.onchange = async () => {
-        const file = mdFileInput.files && mdFileInput.files[0];
+        const selected = mdFileInput.files ? Array.from(mdFileInput.files) : [];
         mdFileInput.value = "";
-        if (!file) return;
+        if (selected.length === 0) return;
 
-        const name = file.name.toLowerCase();
-        if (!name.endsWith(".md") && !name.endsWith(".markdown")) {
-          setMdStatus("Выберите файл .md или .markdown", "warn");
+        const markdownFiles = selected.filter(isMarkdownFile);
+        if (markdownFiles.length === 0) {
+          setMdStatus("Выберите файлы .md или .markdown", "warn");
           return;
         }
 
+        const skipped = selected.length - markdownFiles.length;
+        const sorted = sortFilesByName(markdownFiles);
+
         try {
-          setMdStatus("Конвертация…");
-          const markdown = await readMarkdownFile(file);
+          setMdStatus(
+            sorted.length === 1
+              ? "Конвертация…"
+              : "Конвертация " + sorted.length + " файлов…"
+          );
+          const files = [];
+          for (const file of sorted) {
+            files.push({
+              name: file.name,
+              content: await readMarkdownFile(file),
+            });
+          }
           postToPlugin({
             type: "convert-markdown",
-            payload: markdown,
-            fileName: file.name,
+            files,
           });
+          if (skipped > 0) {
+            setMdStatus(
+              "Пропущено не-markdown файлов: " + skipped + ". Конвертация…",
+              "warn"
+            );
+          }
         } catch (error) {
           const message =
             error instanceof Error ? error.message : "Неизвестная ошибка";
@@ -217,17 +250,15 @@
         if (msg.type === "markdown-converted") {
           jsonInput.value = msg.payload;
           const warnings = Array.isArray(msg.warnings) ? msg.warnings : [];
+          const count = typeof msg.fileCount === "number" ? msg.fileCount : 1;
+          const label =
+            count > 1
+              ? count + " файлов (по имени)"
+              : msg.fileName || "файл";
           if (warnings.length > 0) {
-            setMdStatus(
-              (msg.fileName ? msg.fileName + ": " : "") + warnings.join("; "),
-              "warn"
-            );
+            setMdStatus(label + ": " + warnings.join("; "), "warn");
           } else {
-            setMdStatus(
-              (msg.fileName ? msg.fileName + " — " : "") +
-                "сконвертирован, можно импортировать",
-              "ok"
-            );
+            setMdStatus(label + " — сконвертирован, можно импортировать", "ok");
           }
           return;
         }
